@@ -6,6 +6,8 @@ const express = require('express');
 
 //引入md5加密
 const md5 = require('blueimp-md5');
+//引入cookie-parser
+const cookieParser = require('cookie-parser');
 
 //引入Users
 const Users = require('../models/users');
@@ -19,9 +21,11 @@ const router = new Router();
 
 //解析请求体数据
 router.use(express.urlencoded({extend:true}));
+//解析cookie
+router.use(cookieParser());
 
 //登录
-router.post('/login', (req,res) => {
+router.post('/login',async (req,res) => {
   //收集用户提交的信息
   const {username,password} = req.body;
   console.log(username,password);
@@ -34,7 +38,36 @@ router.post('/login', (req,res) => {
     });
     return;
   }
+  try {
+    const data = await Users.findOne({username,password:md5(password)});
+    
+    if (data){
+      //找到了数据，用户存在
+      res.json({
+        code:0,
+        data:{
+          _id:data.id,
+          username:data.username,
+          type:data.type
+        }
+      })
+    }else {
+      res.json(
+        {
+          "code": 1,
+          "msg": "用户名或密码错误"
+        }
+      )
+    }
+  }catch (e){
+    res.json({
+      "code": 3,
+      "msg": "网络不稳定请稍后重试"
+    });
+  }
 })
+
+//注册
 router.post('/register',async (req,res) => {
  //收集用户提交的信息
   const {username,password,type} = req.body;
@@ -115,5 +148,40 @@ router.post('/register',async (req,res) => {
     }
   }*/
 })
+// 更新用户信息的路由
+router.post('/update', (req, res) => {
+  // 从请求的cookie得到userid
+  const userid = req.cookies.userid
+  // 如果不存在, 直接返回一个提示信息
+  if (!userid) {
+    return res.json({code: 1, msg: '请先登陆'});
+  }
+  // 存在, 根据userid更新对应的user文档数据
+  // 得到提交的用户数据
+  const user = req.body // 没有_id
+  Users.findByIdAndUpdate({_id: userid}, user)
+    .then(oldUser => {
+      if (!oldUser) {
+        //更新数据失败
+        // 通知浏览器删除userid cookie
+        res.clearCookie('userid');
+        // 返回返回一个提示信息
+        res.json({code: 1, msg: '请先登陆'});
+      } else {
+        //更新数据成功
+        // 准备一个返回的user数据对象
+        const {_id, username, type} = oldUser;
+        //此对象有所有的数据
+        const data = Object.assign({_id, username, type}, user)
+        // 返回成功的响应
+        res.json({code: 0, data})
+      }
+    })
+    .catch(error => {
+      // console.error('登陆异常', error)
+      res.send({code: 3, msg: '网络不稳定，请重新试试~'})
+    })
+})
+
 
 module.exports = router;
