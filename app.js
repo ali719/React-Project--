@@ -17,7 +17,7 @@ const app = express();
 })()
 
 // 监听端口号
-app.listen(3002,err => {
+app.listen(4000,err => {
   if (!err) console.log('服务器启动成功');
   else console.log(err);
 })
